@@ -52,7 +52,6 @@ def get_group_members(token, group_id_num):
             group_members_response = requests.get(
                 f'{VK_API_URL}groups.getMembers',
                 params=dict(
-                    # group_id=4100014,
                     group_id=group_id_num,
                     offset=offset,
                     access_token=token,
@@ -60,8 +59,6 @@ def get_group_members(token, group_id_num):
                 )
             )
             if 'error' in group_members_response.json():
-                print(group_members_response.json()['error']['error_code'], end='')
-                print(group_members_response.json()['error']['error_msg'])
                 time.sleep(VK_SLEEPING_TIME)
                 continue
             else:
