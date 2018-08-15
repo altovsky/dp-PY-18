@@ -10,10 +10,12 @@ VK_API_URL = 'https://api.vk.com/method/'
 VK_SLEEPING_TIME = 0.34
 VK_OFFSET_VALUE = 1000
 
+PROCESS_SYMBOLS = ['|', '/', '-', '\\']
 
 def get_groups_info(token, user_id):
 
     while True:
+        progress_output('Получаем список групп')
         groups_info_list = []
         groups_info_response = requests.get(
             f'{VK_API_URL}groups.get',
@@ -49,6 +51,7 @@ def get_group_members(token, group_id_num):
 
     while True:
         try:
+            progress_output(f'Получаем список членов группы. Всего получено {len(group_members_list)}')
             group_members_response = requests.get(
                 f'{VK_API_URL}groups.getMembers',
                 params=dict(
@@ -68,7 +71,6 @@ def get_group_members(token, group_id_num):
                 else:
                     offset += VK_OFFSET_VALUE
                     time.sleep(VK_SLEEPING_TIME)
-                print('.', end='')
         except Exception as Ex:
             print(Ex.args)
             time.sleep(VK_SLEEPING_TIME)
@@ -77,9 +79,20 @@ def get_group_members(token, group_id_num):
     return group_members_list
 
 
+def progress_output(process_name):
+    global progress_output_curcle
+
+    print(f'\r{process_name} {PROCESS_SYMBOLS[progress_output_curcle]}', end='')
+    if progress_output_curcle == len(PROCESS_SYMBOLS)-1:
+        progress_output_curcle = 0
+    else:
+        progress_output_curcle += 1
+
+
 def get_user_friends(token, user_id):
 
     while True:
+        progress_output('Получаем список групп')
         response_user_friends = requests.get(
             f'{VK_API_URL}friends.get',
             params=dict(
@@ -99,6 +112,7 @@ def get_user_friends(token, user_id):
 
 
 valid_groups_list = []
+progress_output_curcle = 0
 user_friends_list = get_user_friends(TOKEN, USER_ID)
 groups_info = get_groups_info(TOKEN, USER_ID)
 
