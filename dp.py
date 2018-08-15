@@ -7,10 +7,10 @@ USER_ID = 171691064
 TOKEN = '7b23e40ad10e08d3b7a8ec0956f2c57910c455e886b480b7d9fb59859870658c4a0b8fdc4dd494db19099'
 VK_API_URL = 'https://api.vk.com/method/'
 
-VK_SLEEPING_TIME = 0.34
+VK_SLEEPING_TIME = 0.1  # 0.34
 VK_OFFSET_VALUE = 1000
 
-PROCESS_SYMBOLS = ['|', '/', '-', '\\']
+PROCESS_SYMBOLS = ['|', '/', '-', '=', '-', '\\']
 
 def get_groups_info(token, user_id):
 
@@ -29,6 +29,10 @@ def get_groups_info(token, user_id):
         )
 
         if 'error' in groups_info_response.json():
+            progress_output(
+                'Получаем список групп ',
+                f'Ошибка {groups_info_response.json()["error"]["error_msg"]}. Ожидаем...'
+            )
             time.sleep(VK_SLEEPING_TIME)
             continue
         else:
@@ -62,6 +66,10 @@ def get_group_members(token, group_id_num):
                 )
             )
             if 'error' in group_members_response.json():
+                progress_output(
+                    f'Получаем список членов группы. Всего получено {len(group_members_list)} ',
+                    f'Ошибка {group_members_response.json()["error"]["error_msg"]}. Ожидаем...'
+                )
                 time.sleep(VK_SLEEPING_TIME)
                 continue
             else:
@@ -79,10 +87,10 @@ def get_group_members(token, group_id_num):
     return group_members_list
 
 
-def progress_output(process_name):
+def progress_output(process_name, more_info=''):
     global progress_output_curcle
 
-    print(f'\r{process_name} {PROCESS_SYMBOLS[progress_output_curcle]}', end='')
+    print(f'\r{process_name} {PROCESS_SYMBOLS[progress_output_curcle]} {more_info}', end='')
     if progress_output_curcle == len(PROCESS_SYMBOLS)-1:
         progress_output_curcle = 0
     else:
