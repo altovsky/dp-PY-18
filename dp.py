@@ -3,14 +3,20 @@
 import requests
 import time
 
-USER_ID = 171691064
-TOKEN = '7b23e40ad10e08d3b7a8ec0956f2c57910c455e886b480b7d9fb59859870658c4a0b8fdc4dd494db19099'
+# USER_ID = 171691064
+# TOKEN = '7b23e40ad10e08d3b7a8ec0956f2c57910c455e886b480b7d9fb59859870658c4a0b8fdc4dd494db19099'
+USER_ID = 10579451
+TOKEN = '4293b67c340ee16f434ae2b4a7f3470efd5c82169ed92bb594b8d04fce9005454fb628de498fcd88c779b'
+
 VK_API_URL = 'https://api.vk.com/method/'
 
-VK_SLEEPING_TIME = 0.1  # 0.34
+VK_SLEEPING_TIME = 0.9
 VK_OFFSET_VALUE = 1000
 
-PROCESS_SYMBOLS = ['|', '/', '-', '=', '-', '\\']
+progress_output_curcle = 0
+# PROCESS_SYMBOLS = ['|', '/', '-', '=', '-', '\\']
+PROCESS_SYMBOLS = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚']
+
 
 def get_groups_info(token, user_id):
 
@@ -45,7 +51,7 @@ def get_groups_info(token, user_id):
                         'members_count': group_info['members_count']
                     }
                 )
-
+            print(f"\rСписок групп получен. ∑ {groups_info_response.json()['response']['count']}.")
             return groups_info_list
 
 
@@ -55,7 +61,7 @@ def get_group_members(token, group_id_num):
 
     while True:
         try:
-            progress_output(f'Получаем список членов группы. Всего получено {len(group_members_list)}')
+            progress_output(f'Получаем список членов группы. Получено {len(group_members_list)}')
             group_members_response = requests.get(
                 f'{VK_API_URL}groups.getMembers',
                 params=dict(
@@ -67,7 +73,7 @@ def get_group_members(token, group_id_num):
             )
             if 'error' in group_members_response.json():
                 progress_output(
-                    f'Получаем список членов группы. Всего получено {len(group_members_list)} ',
+                    f'Получаем список членов группы. Получено {len(group_members_list)} ',
                     f'Ошибка {group_members_response.json()["error"]["error_msg"]}. Ожидаем...'
                 )
                 time.sleep(VK_SLEEPING_TIME)
@@ -84,6 +90,7 @@ def get_group_members(token, group_id_num):
             time.sleep(VK_SLEEPING_TIME)
             continue
 
+    print(f"\rСписок членов группы получен. ∑ {group_members_response.json()['response']['count']}.")
     return group_members_list
 
 
@@ -100,7 +107,7 @@ def progress_output(process_name, more_info=''):
 def get_user_friends(token, user_id):
 
     while True:
-        progress_output('Получаем список групп')
+        progress_output('Получаем список друзей')
         response_user_friends = requests.get(
             f'{VK_API_URL}friends.get',
             params=dict(
@@ -113,34 +120,39 @@ def get_user_friends(token, user_id):
         )
 
         if 'error' in response_user_friends.json():
+            progress_output(
+                'Получаем список друзей',
+                f"Ошибка - {response_user_friends.json()['error']['error_msg']} Повторяем попытку."
+            )
             time.sleep(VK_SLEEPING_TIME)
             continue
         else:
+            print(f"\rСписок друзей получен. ∑ {response_user_friends.json()['response']['count']}.")
             return response_user_friends.json()['response']['items']
 
 
 valid_groups_list = []
-progress_output_curcle = 0
 user_friends_list = get_user_friends(TOKEN, USER_ID)
 groups_info = get_groups_info(TOKEN, USER_ID)
 
 time.sleep(VK_SLEEPING_TIME)
 
 for group in groups_info:
-    group_members = get_group_members(TOKEN, group['gid'])
+    if group['members_count'] < 400:
+        group_members = get_group_members(TOKEN, group['gid'])
 
-    for friend in user_friends_list:
-        if friend['id'] in group_members:
-            break
+        for friend in user_friends_list:
+            if friend['id'] in group_members:
+                break
 
-    valid_groups_list.append(
-        {
-            'name': group['name'],
-            'gid': group['gid'],
-            'members_count': group['members_count']
-        }
-    )
+        valid_groups_list.append(
+            {
+                'name': group['name'],
+                'gid': group['gid'],
+                'members_count': group['members_count']
+            }
+        )
 
-    time.sleep(VK_SLEEPING_TIME)
+        time.sleep(VK_SLEEPING_TIME)
 
-print('valid_groups_list', valid_groups_list, '\a')
+print('valid_groups_list', '\n', valid_groups_list)
