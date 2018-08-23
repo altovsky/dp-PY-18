@@ -3,156 +3,183 @@
 import requests
 import time
 
-# USER_ID = 171691064
-# TOKEN = '7b23e40ad10e08d3b7a8ec0956f2c57910c455e886b480b7d9fb59859870658c4a0b8fdc4dd494db19099'
-USER_ID = 10579451
-TOKEN = '4293b67c340ee16f434ae2b4a7f3470efd5c82169ed92bb594b8d04fce9005454fb628de498fcd88c779b'
 
-VK_API_URL = 'https://api.vk.com/method/'
+class VKUser:
+    def __init__(self, user_id, token, sleeping_time):
+        self.id = user_id
+        self.token = token
+        self.api_url = 'https://api.vk.com/method/'
+        self.api_ver = 5.80
+        self.sleeping_time = sleeping_time
+        self.offset_value = 1000
+        self.process_message = ''
+        self.process_symbols = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚']
+        self.progress_output_circle = 0
+        self.error_message = ''
 
-VK_SLEEPING_TIME = 0.9
-VK_OFFSET_VALUE = 1000
+    def progress_output(self):
+        print(f'\r{self.process_message} '
+              f'{self.process_symbols[self.progress_output_circle]} '
+              f'{self.error_message}', end='')
+        if self.progress_output_circle == len(self.process_symbols) - 1:
+            self.progress_output_circle = 0
+        else:
+            self.progress_output_circle += 1
 
-progress_output_curcle = 0
-# PROCESS_SYMBOLS = ['|', '/', '-', '=', '-', '\\']
-PROCESS_SYMBOLS = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚']
+    def get_response_value(self, api_method, requests_parameters):
+        while True:
+            try:
+                response_value = requests.get(
+                    f'{self.api_url}{api_method}',
+                    params=requests_parameters
+                )
 
+                if 'error' in response_value.json():
+                    self.error_message = f'Ошибка {response_value.json()["error"]["error_msg"]}. Ожидаем...'
+                    self.progress_output()
+                    time.sleep(self.sleeping_time)
+                    continue
+                else:
+                    self.error_message = ''
+                    return response_value
 
-def get_groups_info(token, user_id):
+            except Exception as Ex:
+                self.error_message = f'Ошибка {Ex.args}. Ожидаем...'
+                self.progress_output()
+                time.sleep(self.sleeping_time)
 
-    while True:
-        progress_output('Получаем список групп')
-        groups_info_list = []
-        groups_info_response = requests.get(
-            f'{VK_API_URL}groups.get',
-            params=dict(
-                user_ids=user_id,
+    def get_friends(self):
+        self.process_message = 'Получаем список друзей'
+        self.error_message = ''
+        self.progress_output()
+
+        friends_data = self.get_response_value(
+            api_method='friends.get',
+            requests_parameters=dict(
+                user_ids=self.id,
+                fields='deactivated, type',
+                access_token=self.token,
+                v=self.api_ver
+            )
+        )
+
+        print(f"\rСписок друзей получен. ∑ {friends_data.json()['response']['count']}.")
+        return friends_data.json()['response']['items']
+
+    def get_groups(self):
+        self.process_message = 'Получаем список групп'
+        self.error_message = ''
+        self.progress_output()
+
+        groups_list = []
+        groups_data = self.get_response_value(
+            api_method='groups.get',
+            requests_parameters=dict(
+                user_ids=self.id,
                 extended=1,
                 fields='members_count',
-                access_token=token,
-                v=5.80
+                access_token=self.token,
+                v=self.api_ver
             )
         )
 
-        if 'error' in groups_info_response.json():
-            progress_output(
-                'Получаем список групп ',
-                f'Ошибка {groups_info_response.json()["error"]["error_msg"]}. Ожидаем...'
+        groups_data_items = groups_data.json()['response']['items']
+        for group_info in groups_data_items:
+            groups_list.append(
+                {
+                    'name': group_info['name'],
+                    'gid': group_info['id'],
+                    'members_count': group_info['members_count']
+                }
             )
-            time.sleep(VK_SLEEPING_TIME)
-            continue
-        else:
-            for group_info in groups_info_response.json()['response']['items']:
 
-                groups_info_list.append(
-                    {
-                        'name': group_info['name'],
-                        'gid': group_info['id'],
-                        'members_count': group_info['members_count']
-                    }
-                )
-            print(f"\rСписок групп получен. ∑ {groups_info_response.json()['response']['count']}.")
-            return groups_info_list
+            self.process_message = f'Получаем список групп. Получено {len(groups_list)}'
+            self.progress_output()
 
+        print(f"\rСписок групп получен. ∑ {groups_data.json()['response']['count']}.")
+        return groups_list
 
-def get_group_members(token, group_id_num):
-    offset = 0
-    group_members_list = []
+    def get_group_info(self, group_id_num):
+        self.process_message = 'Получаем информацию о группе'
+        self.error_message = ''
+        self.progress_output()
 
-    while True:
-        try:
-            progress_output(f'Получаем список членов группы. Получено {len(group_members_list)}')
-            group_members_response = requests.get(
-                f'{VK_API_URL}groups.getMembers',
-                params=dict(
+        group_data = self.get_response_value(
+            api_method='groups.getById',
+            requests_parameters=dict(
+                user_ids=self.id,
+                group_id=group_id_num,
+                fields='name',
+                access_token=self.token,
+                v=self.api_ver
+            )
+        )
+
+        return group_data.json()['response'][0]['name']
+
+    def get_group_members(self, group_id_num):
+        group_name = self.get_group_info(group_id_num)
+        self.process_message = f'Получаем список членов группы <{group_name}.>'
+        self.error_message = ''
+        self.progress_output()
+
+        offset = 0
+        group_members_list = []
+        while True:
+            group_members_value = self.get_response_value(
+                api_method='groups.getMembers',
+                requests_parameters=dict(
                     group_id=group_id_num,
                     offset=offset,
-                    access_token=token,
-                    v=5.80
+                    access_token=self.token,
+                    v=self.api_ver
                 )
             )
-            if 'error' in group_members_response.json():
-                progress_output(
-                    f'Получаем список членов группы. Получено {len(group_members_list)} ',
-                    f'Ошибка {group_members_response.json()["error"]["error_msg"]}. Ожидаем...'
-                )
-                time.sleep(VK_SLEEPING_TIME)
-                continue
-            else:
-                group_members_list += group_members_response.json()['response']['users']
-                if group_members_response.json()['response']['count'] == len(group_members_list):
-                    break
-                else:
-                    offset += VK_OFFSET_VALUE
-                    time.sleep(VK_SLEEPING_TIME)
-        except Exception as Ex:
-            print(Ex.args)
-            time.sleep(VK_SLEEPING_TIME)
-            continue
 
-    print(f"\rСписок членов группы получен. ∑ {group_members_response.json()['response']['count']}.")
-    return group_members_list
+            group_members_list += group_members_value.json()['response']['users']
+            self.process_message = f'Получаем список членов группы <{group_name}>. Получено {len(group_members_list)}.'
+            self.progress_output()
 
-
-def progress_output(process_name, more_info=''):
-    global progress_output_curcle
-
-    print(f'\r{process_name} {PROCESS_SYMBOLS[progress_output_curcle]} {more_info}', end='')
-    if progress_output_curcle == len(PROCESS_SYMBOLS)-1:
-        progress_output_curcle = 0
-    else:
-        progress_output_curcle += 1
-
-
-def get_user_friends(token, user_id):
-
-    while True:
-        progress_output('Получаем список друзей')
-        response_user_friends = requests.get(
-            f'{VK_API_URL}friends.get',
-            params=dict(
-                user_ids=user_id,
-                # extended=1,
-                fields='deactivated, type',
-                access_token=token,
-                v=5.80
-            )
-        )
-
-        if 'error' in response_user_friends.json():
-            progress_output(
-                'Получаем список друзей',
-                f"Ошибка - {response_user_friends.json()['error']['error_msg']} Повторяем попытку."
-            )
-            time.sleep(VK_SLEEPING_TIME)
-            continue
-        else:
-            print(f"\rСписок друзей получен. ∑ {response_user_friends.json()['response']['count']}.")
-            return response_user_friends.json()['response']['items']
-
-
-valid_groups_list = []
-user_friends_list = get_user_friends(TOKEN, USER_ID)
-groups_info = get_groups_info(TOKEN, USER_ID)
-
-time.sleep(VK_SLEEPING_TIME)
-
-for group in groups_info:
-    if group['members_count'] < 400:
-        group_members = get_group_members(TOKEN, group['gid'])
-
-        for friend in user_friends_list:
-            if friend['id'] in group_members:
+            if group_members_value.json()['response']['count'] == len(group_members_list):
                 break
+            else:
+                offset += self.offset_value
+                time.sleep(self.sleeping_time)
 
-        valid_groups_list.append(
-            {
-                'name': group['name'],
-                'gid': group['gid'],
-                'members_count': group['members_count']
-            }
-        )
+        print(f"\rГруппа <{group_name}> ∑ {group_members_value.json()['response']['count']}.")
+        return group_members_list
 
-        time.sleep(VK_SLEEPING_TIME)
+    def get_correct_groups(self):
+        correct_groups_list = []
+        user_friends_list = self.get_friends()
+        groups_list = self.get_groups()
 
-print('valid_groups_list', '\n', valid_groups_list)
+        # time.sleep(self.sleeping_time)
+        for group in groups_list:
+            group_members = self.get_group_members(group['gid'])
+
+            for friend in user_friends_list:
+                if friend['id'] in group_members:
+                    break
+
+            correct_groups_list.append(
+                {
+                    'name': group['name'],
+                    'gid': group['gid'],
+                    'members_count': group['members_count']
+                }
+            )
+
+            time.sleep(self.sleeping_time)
+
+        return correct_groups_list
+
+
+happy_one = VKUser(
+    10579451,
+    'f047c8e6863d9cc2ad0c03b140b55cf7c38a1dc5cfe66eb12e885af6f66050fcb2e68d4ad7f1fabe79b7f',
+    0.34
+)
+
+correct_groups = happy_one.get_correct_groups()
+print(f'Найдено групп: {len(correct_groups)}\n{correct_groups}')
