@@ -13,18 +13,22 @@ class VKUser:
         self.sleeping_time = sleeping_time
         self.offset_value = 1000
         self.process_message = ''
-        self.process_symbols = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚']
-        self.progress_output_circle = 0
+        self.progress_symbols = ['🕛', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚']
+        self.progress_output_cycle = 0
+        self.progress_percent = 0
         self.error_message = ''
+        # self.max_member_ids_request = 1
+        self.max_member_ids_request = 500
 
     def progress_output(self):
-        print(f'\r{self.process_message} '
-              f'{self.process_symbols[self.progress_output_circle]} '
+        print(f'\r{self.progress_symbols[self.progress_output_cycle]} '
+              f'{self.progress_percent}% '
+              f'{self.process_message} '
               f'{self.error_message}', end='')
-        if self.progress_output_circle == len(self.process_symbols) - 1:
-            self.progress_output_circle = 0
+        if self.progress_output_cycle == len(self.progress_symbols) - 1:
+            self.progress_output_cycle = 0
         else:
-            self.progress_output_circle += 1
+            self.progress_output_cycle += 1
 
     def get_response_value(self, api_method, requests_parameters):
         while True:
@@ -63,7 +67,7 @@ class VKUser:
             )
         )
 
-        print(f"\rСписок друзей получен. ∑ {friends_data.json()['response']['count']}.")
+        print(f"\rДрузья ∑ {friends_data.json()['response']['count']}")
         return friends_data.json()['response']['items']
 
     def get_groups(self):
@@ -96,7 +100,7 @@ class VKUser:
             self.process_message = f'Получаем список групп. Получено {len(groups_list)}'
             self.progress_output()
 
-        print(f"\rСписок групп получен. ∑ {groups_data.json()['response']['count']}.")
+        print(f"\rГруппы ∑ {groups_data.json()['response']['count']}")
         return groups_list
 
     def get_group_info(self, group_id_num):
@@ -149,37 +153,74 @@ class VKUser:
         print(f"\rГруппа <{group_name}> ∑ {group_members_value.json()['response']['count']}.")
         return group_members_list
 
+    def is_member_of_group(self, user_group, user_friends):
+        user_friends_ids_list = set()
+        max_member_counter = 0
+        user_friends_number = len(user_friends)
+        for counter, friend in enumerate(user_friends):
+
+            user_friends_ids_list.add(friend['id'])
+            max_member_counter += 1
+
+            if max_member_counter == self.max_member_ids_request \
+                    or \
+                    counter + 1 == user_friends_number:
+
+                self.process_message = f'Проверяем группу <{user_group["name"]}.>'
+                self.error_message = ''
+                self.progress_output()
+
+                is_member = self.get_response_value(
+                    api_method='groups.isMember',
+                    requests_parameters=dict(
+                        group_id=user_group['gid'],
+                        user_ids=user_friends_ids_list,
+                        access_token=self.token,
+                        v=self.api_ver
+                    )
+                )
+
+                for each in is_member.json()['response']:
+                    if each['member']:
+                        return True
+
+                time.sleep(self.sleeping_time)
+                user_friends_ids_list = []
+
+        return False
+
     def get_correct_groups(self):
         correct_groups_list = []
         user_friends_list = self.get_friends()
         groups_list = self.get_groups()
 
-        # time.sleep(self.sleeping_time)
-        for group in groups_list:
-            group_members = self.get_group_members(group['gid'])
+        for count, group in enumerate(groups_list):
+            self.process_message = f'Проверяем группу <{group["name"]}.>'
+            self.progress_percent = int(round(1/(len(groups_list)/100)*(count+1), 0))
+            self.error_message = ''
+            self.progress_output()
 
-            for friend in user_friends_list:
-                if friend['id'] in group_members:
-                    break
-
-            correct_groups_list.append(
-                {
-                    'name': group['name'],
-                    'gid': group['gid'],
-                    'members_count': group['members_count']
-                }
-            )
-
-            time.sleep(self.sleeping_time)
+            if not self.is_member_of_group(group, user_friends_list):
+                correct_groups_list.append(
+                    {
+                        'name': group['name'],
+                        'gid': group['gid'],
+                        'members_count': group['members_count']
+                    }
+                )
 
         return correct_groups_list
 
 
 happy_one = VKUser(
     10579451,
-    'f047c8e6863d9cc2ad0c03b140b55cf7c38a1dc5cfe66eb12e885af6f66050fcb2e68d4ad7f1fabe79b7f',
-    0.34
+    # 171691064,
+    'eef6370405d8b09233cdebc90e5d149096ab9a3d0c94d17d510387226f1e87b300bcfd7118615c5e6d255',
+    # 'ed1271af9e8883f7a7c2cefbfddfcbc61563029666c487b2f71a5227cce0d1b533c4af4c5b888633c06ae',
+    0.3,
+    # 0.0,
 )
 
 correct_groups = happy_one.get_correct_groups()
-print(f'Найдено групп: {len(correct_groups)}\n{correct_groups}')
+# print(f'\rНайдено групп, в которых нет друзей: {len(correct_groups)}\n{correct_groups}\n')
+print(f'\rНайдено групп, в которых нет друзей: {len(correct_groups)}')
